@@ -7,7 +7,7 @@ import { ExpenseSummary } from '@/components/ExpenseSummary';
 import { FixedExpenseForm } from '@/components/FixedExpenseForm';
 import { MonthSelector } from '@/components/MonthSelector';
 import { Transaction, Owner } from '@/types';
-import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings } from 'lucide-react';
+import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload } from 'lucide-react';
 
 import { CategoryPieChart } from '@/components/CategoryPieChart';
 import { RecurringExpensesList } from '@/components/RecurringExpensesList';
@@ -410,6 +410,41 @@ export default function Home() {
     setIsEditingTitle(true);
   };
 
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportBackupClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportBackupFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      if (!parsed.monthsData || !parsed.monthOrder) {
+        throw new Error('Formato de backup inválido.');
+      }
+
+      if (window.confirm('Isso irá substituir TODOS os seus dados atuais pelos do backup. Deseja continuar?')) {
+        setMonthsData(parsed.monthsData || {});
+        setRecurExp(parsed.recurExp || []);
+        setMonthOrder(parsed.monthOrder || []);
+        setSelectedMonth(parsed.selectedMonth || null);
+        if (parsed.incomes) setIncomes(parsed.incomes);
+
+        alert('Backup restaurado com sucesso!');
+      }
+    } catch (e) {
+      alert('Erro ao restaurar backup: ' + (e as Error).message);
+    }
+
+    // Reset input
+    event.target.value = '';
+  };
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-neutral-200 selection:bg-blue-500/30">
       {/* Background Gradients */}
@@ -449,6 +484,21 @@ export default function Home() {
               >
                 <BarChart3 className="w-4 h-4" />
                 <span>Resumo Anual</span>
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImportBackupFile}
+                className="hidden"
+                accept=".json"
+              />
+              <button
+                onClick={handleImportBackupClick}
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                title="Restaurar backup (JSON)"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Restaurar</span>
               </button>
               <button
                 onClick={handleExportBackup}
