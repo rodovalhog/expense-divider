@@ -1,17 +1,20 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { FileUploader } from '@/components/FileUploader';
 import { TransactionTable } from '@/components/TransactionTable';
 import { ExpenseSummary } from '@/components/ExpenseSummary';
 import { FixedExpenseForm } from '@/components/FixedExpenseForm';
 import { MonthSelector } from '@/components/MonthSelector';
-import { Transaction } from '@/types';
-import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check } from 'lucide-react';
+import { Transaction, Owner } from '@/types';
+import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings } from 'lucide-react';
 
 import { CategoryPieChart } from '@/components/CategoryPieChart';
 import { RecurringExpensesList } from '@/components/RecurringExpensesList';
 import { parseInvoiceCSV } from '@/lib/parser';
+import { ConsolidatedSummary } from '@/components/ConsolidatedSummary';
+import { IncomeConfiguration } from '@/components/IncomeConfiguration';
+import { shouldIncludeInTotal, normalizeDescription } from '@/lib/utils';
 
 export default function Home() {
   // State: keyed by month name
@@ -21,6 +24,47 @@ export default function Home() {
 
   // State: Ordered list of months for display
   const [monthOrder, setMonthOrder] = useState<string[]>([]);
+
+  // State: Detail views
+  const [showSummary, setShowSummary] = useState(false);
+  const [showIncomeConfig, setShowIncomeConfig] = useState(false);
+
+  // State: Incomes
+  const [incomes, setIncomes] = useState<Record<Owner, number>>({ Me: 0, Wife: 0, Shared: 0 });
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load from LocalStorage on mount
+  useEffect(() => {
+    const savedData = localStorage.getItem('expense-divider-state');
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.monthsData) setMonthsData(parsed.monthsData);
+        if (parsed.recurExp) setRecurExp(parsed.recurExp);
+        if (parsed.monthOrder) setMonthOrder(parsed.monthOrder);
+        if (parsed.selectedMonth) setSelectedMonth(parsed.selectedMonth);
+        if (parsed.incomes) setIncomes(parsed.incomes);
+      } catch (e) {
+        console.error('Falha ao recuperar dados do localStorage:', e);
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save to LocalStorage on change
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const stateToSave = {
+      monthsData,
+      recurExp,
+      monthOrder,
+      selectedMonth,
+      incomes
+    };
+    localStorage.setItem('expense-divider-state', JSON.stringify(stateToSave));
+  }, [monthsData, recurExp, monthOrder, selectedMonth, incomes, isLoaded]);
 
   // Compute totals for each month
   const monthTotals = useMemo(() => {
@@ -46,6 +90,7 @@ export default function Home() {
     setMonthsData(prev => ({ ...prev, [name]: [] }));
     setMonthOrder(prev => [...prev, name]); // Append new month to end
     setSelectedMonth(name);
+    setShowSummary(false); // Switch to normal view
   }, [monthsData]);
 
   const handleDeleteMonth = useCallback((name: string) => {
@@ -82,6 +127,7 @@ export default function Home() {
         setMonthOrder(prev => [...prev, fileName]);
       }
       setSelectedMonth(fileName);
+      setShowSummary(false); // Switch to normal view
     } catch (e) {
       alert('Erro ao processar arquivo: ' + (e as Error).message);
     }
@@ -118,19 +164,91 @@ export default function Home() {
   }, [selectedMonth, monthOrder]);
 
   const handleUpdateTransaction = useCallback((id: string, updates: Partial<Transaction>) => {
-    if (!selectedMonth) return;
+    // 1. Determine if it's a recurring expense or a monthly transaction
+    const isRecurring = recurExp.some(t => t.id === id);
+    let targetTransaction: Transaction | undefined;
 
-    // Check if it's a recurring transaction
-    if (recurExp.some(t => t.id === id)) {
-      setRecurExp(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-      return;
+    if (isRecurring) {
+      targetTransaction = recurExp.find(t => t.id === id);
+    } else if (selectedMonth) {
+      targetTransaction = monthsData[selectedMonth]?.find(t => t.id === id);
     }
 
-    setMonthsData((prev) => ({
-      ...prev,
-      [selectedMonth]: prev[selectedMonth].map(t => t.id === id ? { ...t, ...updates } : t)
-    }));
-  }, [selectedMonth, recurExp]);
+    if (!targetTransaction) return;
+
+    // 2. Check if we are updating the category
+    const isCategoryUpdate = updates.customCategory &&
+      updates.customCategory !== (targetTransaction.customCategory || targetTransaction.category);
+
+    if (isCategoryUpdate && targetTransaction.description) {
+      // Use normalized description for fuzzy matching (e.g. ignoring "Facebk *123")
+      const targetDescNormalized = normalizeDescription(targetTransaction.description);
+      const newCategory = updates.customCategory;
+
+      // Check for matches in Recurring Expenses (excluding self if self is recurring)
+      const matchingRecurCount = recurExp.filter(t =>
+        t.id !== id &&
+        normalizeDescription(t.description) === targetDescNormalized &&
+        (t.customCategory || t.category) !== newCategory
+      ).length;
+
+      // Check for matches in All Months (excluding self if self is monthly)
+      let matchingMonthsCount = 0;
+      Object.values(monthsData).forEach(txs => {
+        matchingMonthsCount += txs.filter(t =>
+          t.id !== id &&
+          normalizeDescription(t.description) === targetDescNormalized &&
+          (t.customCategory || t.category) !== newCategory
+        ).length;
+      });
+
+      const totalMatches = matchingRecurCount + matchingMonthsCount;
+
+      if (totalMatches > 0) {
+        const confirmMessage = `Encontrei outras ${totalMatches} transações similares ("${targetTransaction.description}") em todos os meses.\nDeseja alterar a categoria de TODAS para "${newCategory}"?`;
+
+        if (window.confirm(confirmMessage)) {
+          // Perform Global Update
+
+          // Update RecurExp
+          setRecurExp(prev => prev.map(t => {
+            // Check normalized equality
+            if (t.id === id || (normalizeDescription(t.description) === targetDescNormalized)) {
+              return { ...t, ...updates };
+            }
+            return t;
+          }));
+
+          // Update All Months
+          setMonthsData(prev => {
+            const newState = { ...prev };
+            Object.keys(newState).forEach(monthKey => {
+              newState[monthKey] = newState[monthKey].map(t => {
+                // Check normalized equality
+                if (t.id === id || (normalizeDescription(t.description) === targetDescNormalized)) {
+                  return { ...t, ...updates };
+                }
+                return t;
+              });
+            });
+            return newState;
+          });
+
+          return; // Stop here
+        }
+      }
+    }
+
+    // 3. Fallback: If no category update or user said "No" to global update, just update the single item
+    if (isRecurring) {
+      setRecurExp(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    } else if (selectedMonth) {
+      setMonthsData(prev => ({
+        ...prev,
+        [selectedMonth]: prev[selectedMonth].map(t => t.id === id ? { ...t, ...updates } : t)
+      }));
+    }
+  }, [recurExp, monthsData, selectedMonth]);
 
   const handleAddTransaction = useCallback((newTransaction: Transaction) => {
     if (!selectedMonth) return;
@@ -162,9 +280,6 @@ export default function Home() {
     // Otherwise remove from current selected month
     if (!selectedMonth) return;
 
-    // Optional: confirm
-    // if (!window.confirm('Remover esta transação?')) return; 
-
     setMonthsData((prev) => ({
       ...prev,
       [selectedMonth]: prev[selectedMonth].filter(t => t.id !== id)
@@ -175,9 +290,6 @@ export default function Home() {
   const activeFiles = useMemo(() => {
     if (!selectedMonth) return [];
     const files = new Set<string>();
-    // Only check current month's transactions, not recurring (unless recurring tracks sourceFile too?)
-    // Recurring usually don't come from CSVs in this flow, or if they do, we might want to keep them separate?
-    // Let's stick to modifying the month's data.
     const monthTx = monthsData[selectedMonth] || [];
     monthTx.forEach(t => {
       if (t.sourceFile) files.add(t.sourceFile);
@@ -218,6 +330,81 @@ export default function Home() {
     setIsEditingTitle(false);
   }, [selectedMonth, monthsData, tempTitle]);
 
+  const handleExportBackup = useCallback(() => {
+    const stateToSave = {
+      monthsData,
+      recurExp,
+      monthOrder,
+      selectedMonth
+    };
+    const blob = new Blob([JSON.stringify(stateToSave, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `expense-divider-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [monthsData, recurExp, monthOrder, selectedMonth]);
+
+  const handleExportCSV = useCallback(() => {
+    // Header
+    let csvContent = "Data,Mês,Descrição,Categoria,Valor,Responsável,Arquivo Fonte,Ignorado\n";
+
+    // Recurring Expenses
+    recurExp.forEach(t => {
+      const line = [
+        t.date || '',
+        'Recorrente',
+        `"${(t.description || '').replace(/"/g, '""')}"`,
+        t.category || '',
+        t.amount.toString().replace('.', ','),
+        t.owner,
+        'Recorrente',
+        t.excluded ? 'Sim' : 'Não'
+      ].join(',');
+      csvContent += line + "\n";
+    });
+
+    // Monthly Expenses
+    Object.entries(monthsData).forEach(([monthName, transactions]) => {
+      transactions.forEach(t => {
+        const line = [
+          t.date || '',
+          monthName,
+          `"${(t.description || '').replace(/"/g, '""')}"`,
+          t.customCategory || t.category || '',
+          t.amount.toString().replace('.', ','),
+          t.owner,
+          t.sourceFile || '',
+          t.excluded ? 'Sim' : 'Não'
+        ].join(',');
+        csvContent += line + "\n";
+      });
+    });
+
+    // Calculate Total
+    let totalSum = 0;
+    recurExp.forEach(t => { if (shouldIncludeInTotal(t)) totalSum += t.amount; });
+    Object.values(monthsData).forEach(txs => {
+      txs.forEach(t => { if (shouldIncludeInTotal(t)) totalSum += t.amount; });
+    });
+
+    // Append Total Row (aligned with Description and Value columns)
+    csvContent += `\n,,TOTAL GERAL,,${totalSum.toFixed(2).replace('.', ',')},,,`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `relatorio-geral-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [monthsData, recurExp]);
+
   const startEditing = () => {
     setTempTitle(selectedMonth || '');
     setIsEditingTitle(true);
@@ -245,6 +432,41 @@ export default function Home() {
                 <p className="text-neutral-500">Simplifique suas finanças compartilhadas</p>
               </div>
             </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowIncomeConfig(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                title="Definir rendas mensais"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Renda</span>
+              </button>
+              <button
+                onClick={() => setShowSummary(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-sm transition-colors border border-blue-500/20"
+                title="Ver resumo de todos os meses"
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Resumo Anual</span>
+              </button>
+              <button
+                onClick={handleExportBackup}
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                title="Baixar backup completo (JSON)"
+              >
+                <FileJson className="w-4 h-4" />
+                <span>Backup</span>
+              </button>
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                title="Baixar relatório em Excel/CSV"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Relatório</span>
+              </button>
+            </div>
           </div>
 
           {/* Global Recurring Expenses */}
@@ -258,7 +480,7 @@ export default function Home() {
             months={monthOrder}
             selectedMonth={selectedMonth}
             monthTotals={monthTotals}
-            onSelectMonth={setSelectedMonth}
+            onSelectMonth={(m) => { setSelectedMonth(m); setShowSummary(false); }}
             onAddMonth={handleAddMonth}
             onDeleteMonth={handleDeleteMonth}
             onReorderMonths={handleReorderMonths}
@@ -268,7 +490,13 @@ export default function Home() {
 
         {/* Main Content Area */}
         <div className="w-full">
-          {!selectedMonth ? (
+          {showSummary ? (
+            <ConsolidatedSummary
+              monthsData={monthsData}
+              recurExp={recurExp}
+              onClose={() => setShowSummary(false)}
+            />
+          ) : !selectedMonth ? (
             <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-neutral-800 rounded-3xl bg-neutral-900/30 text-center animate-in fade-in zoom-in duration-500">
               <div className="p-6 bg-neutral-800/50 rounded-full mb-4">
                 <LayoutDashboard className="w-12 h-12 text-neutral-600" />
@@ -358,7 +586,15 @@ export default function Home() {
             </div>
           )}
         </div>
-      </div>
-    </main>
+      </div >
+
+      {showIncomeConfig && (
+        <IncomeConfiguration
+          incomes={incomes}
+          onSave={setIncomes}
+          onClose={() => setShowIncomeConfig(false)}
+        />
+      )}
+    </main >
   );
 }

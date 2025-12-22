@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 💰 Divisor de Despesas (Expense Divider)
 
-## Getting Started
+Uma aplicação moderna para gerenciamento e divisão de despesas financeiras, ideal para casais ou grupos que compartilham contas. 
 
-First, run the development server:
+![Preview](https://i.imgur.com/example-preview.png) *(Imagem ilustrativa)*
 
+## ✨ Funcionalidades
+
+### 📊 Gestão Completa
+- **Dashboard Mensal**: Visualize seus gastos mês a mês com gráficos claros.
+- **Resumo Anual Consolidado**: Veja o panorama completo do ano com média de gastos e distribuição por categoria.
+- **Gráficos Interativos**: Gráficos de pizza para entender para onde seu dinheiro está indo.
+
+### 📝 Controle de Transações
+- **Importação de CSV**: Suporte nativo para faturas de cartão (testado com Nubank) e importação inteligente.
+- **Despesas Recorrentes**: Cadastre gastos fixos uma vez e eles aparecerão automaticamente em todos os meses.
+- **Edição em Massa**: Ao alterar a categoria de uma despesa, o sistema sugere atualizar todas as despesas similares (mesma descrição/ID) em todos os meses.
+- **Exclusão Avançada**: Ignore pagamentos de fatura ou estornos do cálculo total, mantendo o histórico mas zerando o impacto na soma.
+
+### 👤 Divisão e Renda
+- **Donos da Despesa**: Marque cada gasto como "Eu", "Esposa/Marido" ou "Compartilhado".
+- **Configuração de Renda**: Informe a renda de cada pessoa para cálculos futuros de divisão proporcional.
+
+### 💾 Dados e Segurança
+- **Persistência Local**: Todos os dados ficam salvos no seu navegador (LocalStorage). Nada vai para a nuvem sem você saber.
+- **Backup e Restauração**: Exporte todos os seus dados em JSON para segurança.
+- **Relatórios**: Exporte um relatório detalhado em CSV (Planilha) contendo todas as transações, categorias e totais.
+
+## 🚀 Como Rodar o Projeto
+
+Este é um projeto [Next.js](https://nextjs.org/).
+
+### Pré-requisitos
+- Node.js instalado.
+- Gerenciador de pacotes `yarn` ou `npm`.
+
+### Instalação
+
+1. Clone o repositório ou entre na pasta:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd expense-divider
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Instale as dependências:
+```bash
+yarn install
+# ou
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Rode o servidor de desenvolvimento:
+```bash
+yarn dev
+# ou
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Abra [http://localhost:3000](http://localhost:3000) no seu navegador.
 
-## Learn More
+## 🛠️ Tecnologias Utilizadas
 
-To learn more about Next.js, take a look at the following resources:
+- **[Next.js 14](https://nextjs.org/)**: Framework React moderno.
+- **[Tailwind CSS](https://tailwindcss.com/)**: Estilização rápida e responsiva.
+- **[Lucide React](https://lucide.dev/)**: Ícones elegantes.
+- **[Recharts](https://recharts.org/)**: Gráficos de dados.
+- **[Papaparse](https://www.papaparse.com/)**: Processamento poderoso de arquivos CSV.
+- **TypeScript**: Segurança e tipagem de código.
+- **dnd-kit**: (Preparado para Drag and Drop de meses).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 💡 Dicas de Uso
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Comece criando um mês**: Clique no "+" na barra superior.
+2. **Importe sua fatura**: Arraste o arquivo CSV da sua fatura para a área pontilhada.
+3. **Organize**: Use o botão de "olho" para ignorar pagamentos de fatura (elas não são gastos!).
+4. **Padronize**: Ao mudar a categoria do "Uber", aceite a sugestão para mudar todos os "Ubers" do ano.
+5. **Acompanhe**: Use o botão "Resumo Anual" para ver se você está gastando muito em "Lazer" este ano!

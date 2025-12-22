@@ -9,6 +9,10 @@ export const DEFAULT_CATEGORIES = [
     'Saúde',
     'Restaurante',
     'Assinaturas',
+    'Cursos',
+    'Estacionamento',
+    'Empreendimento',
+    'Gasto com terceiro',
     'Outros'
 ] as const;
 
