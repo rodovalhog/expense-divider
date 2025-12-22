@@ -45,4 +45,9 @@ export interface CSVRow {
     "Valor (em US$)": string;
     "Cotação (em R$)": string;
     "Valor (em R$)": string;
+    // Nubank Format (fields are lowercase)
+    date?: string;
+    category?: string;
+    title?: string;
+    amount?: string;
 }

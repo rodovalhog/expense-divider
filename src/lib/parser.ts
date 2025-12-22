@@ -57,14 +57,18 @@ export const parseInvoiceCSV = (file: File): Promise<Transaction[]> => {
 
                         transactions.push({
                             id: generateId(),
-                            date: row['date'], // 2024-12-07
+                            date: row['date'] || '', // 2024-12-07
                             cardName: 'Nubank',
-                            category: 'A Classificar', // Placeholder as requested
-                            description: row['title'],
+                            cardLastFour: 'XXXX', // Nubank CSV doesn't provide this usually
+                            category: (row['category'] as any) || 'A Classificar',
+                            customCategory: undefined,
+                            description: row['title'] || '',
+                            installment: '', // Nubank CSV usually doesn't have installment info in this format
                             amount: isNaN(amount) ? 0 : amount,
                             owner: 'Shared',
                             sourceFile: file.name,
-                            source: 'CSV'
+                            source: 'CSV',
+                            excluded: false
                         });
                     }
                 });
