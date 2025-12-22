@@ -2,7 +2,12 @@
 
 Uma aplicação moderna para gerenciamento e divisão de despesas financeiras, ideal para casais ou grupos que compartilham contas. 
 
-![Preview](https://i.imgur.com/example-preview.png) *(Imagem ilustrativa)*
+
+
+
+![Preview] *(Imagem ilustrativa)*
+
+<img width="1483" height="1323" alt="image" src="https://github.com/user-attachments/assets/8060f4ae-0b7a-4797-a1fc-67efbfbe8b6f" />
 
 ## ✨ Funcionalidades
 
