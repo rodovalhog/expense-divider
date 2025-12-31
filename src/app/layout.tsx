@@ -10,14 +10,23 @@ export const metadata: Metadata = {
   description: 'Split expenses easily with your partner',
 };
 
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { Providers } from '@/components/Providers';
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className={cn(inter.className, "antialiased min-h-screen bg-[#0a0a0a]")}>{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn(inter.className, "antialiased min-h-screen bg-neutral-50 dark:bg-[#0a0a0a] transition-colors duration-300")}>
+        <ThemeProvider defaultTheme="dark" storageKey="expense-divider-theme" forcedTheme="dark">
+          <Providers>
+            {children}
+          </Providers>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

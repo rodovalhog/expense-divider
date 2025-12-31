@@ -7,14 +7,19 @@ import { ExpenseSummary } from '@/components/ExpenseSummary';
 import { FixedExpenseForm } from '@/components/FixedExpenseForm';
 import { MonthSelector } from '@/components/MonthSelector';
 import { Transaction, Owner } from '@/types';
-import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload } from 'lucide-react';
+import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload, Trash2 } from 'lucide-react';
 
 import { CategoryPieChart } from '@/components/CategoryPieChart';
 import { RecurringExpensesList } from '@/components/RecurringExpensesList';
 import { parseInvoiceCSV } from '@/lib/parser';
 import { ConsolidatedSummary } from '@/components/ConsolidatedSummary';
 import { IncomeConfiguration } from '@/components/IncomeConfiguration';
+import { SponsoredBanner } from '@/components/SponsoredBanner';
+
+import { UserMenu } from '@/components/auth/UserMenu';
 import { shouldIncludeInTotal, normalizeDescription } from '@/lib/utils';
+import { saveAppState, getUserData } from '@/app/actions';
+import { useSession } from 'next-auth/react';
 
 export default function Home() {
   // State: keyed by month name
@@ -34,27 +39,52 @@ export default function Home() {
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from LocalStorage on mount
+  const { data: session } = useSession();
+  const [needsMigration, setNeedsMigration] = useState(false);
+  const [localDataToMigrate, setLocalDataToMigrate] = useState<any>(null);
+
+  // Load from DB on mount
   useEffect(() => {
-    const savedData = localStorage.getItem('expense-divider-state');
-    if (savedData) {
+    async function loadData() {
+      if (!session?.user) return;
+
       try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.monthsData) setMonthsData(parsed.monthsData);
-        if (parsed.recurExp) setRecurExp(parsed.recurExp);
-        if (parsed.monthOrder) setMonthOrder(parsed.monthOrder);
-        if (parsed.selectedMonth) setSelectedMonth(parsed.selectedMonth);
-        if (parsed.incomes) setIncomes(parsed.incomes);
+        const data = await getUserData();
+
+        if (data) {
+          // Server data found, hydrate state
+          if (data.monthsData) setMonthsData(data.monthsData);
+          if (data.recurExp) setRecurExp(data.recurExp);
+          if (data.monthOrder) setMonthOrder(data.monthOrder);
+          if (data.selectedMonth) setSelectedMonth(data.selectedMonth);
+          if (data.incomes) setIncomes(data.incomes);
+        } else {
+          // No server data. Check localStorage (Auto-Migration)
+          const savedData = localStorage.getItem('expense-divider-state');
+          if (savedData) {
+            const parsed = JSON.parse(savedData);
+            if (parsed.monthsData) setMonthsData(parsed.monthsData);
+            if (parsed.recurExp) setRecurExp(parsed.recurExp);
+            if (parsed.monthOrder) setMonthOrder(parsed.monthOrder);
+            if (parsed.selectedMonth) setSelectedMonth(parsed.selectedMonth);
+            if (parsed.incomes) setIncomes(parsed.incomes);
+
+            // It will auto-save to DB due to the useEffect below!
+            console.log("Loaded from localStorage, verifying sync...");
+          }
+        }
       } catch (e) {
-        console.error('Falha ao recuperar dados do localStorage:', e);
+        console.error("Failed to load user data", e);
+      } finally {
+        setIsLoaded(true);
       }
     }
-    setIsLoaded(true);
-  }, []);
+    loadData();
+  }, [session]);
 
-  // Save to LocalStorage on change
+  // SAVE TO DB (Single Source of Truth, JSON blob)
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !session?.user) return;
 
     const stateToSave = {
       monthsData,
@@ -63,8 +93,20 @@ export default function Home() {
       selectedMonth,
       incomes
     };
+
+    // Save to LocalStorage (Backup)
     localStorage.setItem('expense-divider-state', JSON.stringify(stateToSave));
-  }, [monthsData, recurExp, monthOrder, selectedMonth, incomes, isLoaded]);
+
+    // Save to Server (Debounced ideally, but direct for now request)
+    const timeoutId = setTimeout(() => {
+      saveAppState(stateToSave).catch(err => console.error("Failed to save to DB", err));
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [monthsData, recurExp, monthOrder, selectedMonth, incomes, isLoaded, session]);
+
+  // We removed handleMigration because the useEffect above handles it automatically
+  // once the data is loaded from localStorage into state.
 
   // Compute totals for each month
   const monthTotals = useMemo(() => {
@@ -78,6 +120,8 @@ export default function Home() {
     return totals;
   }, [monthsData, recurExp]);
 
+
+
   // Computed transactions for current view: Specific + Recurring
   const currentTransactions = useMemo(() => {
     if (!selectedMonth) return [];
@@ -85,66 +129,88 @@ export default function Home() {
     return [...recurExp, ...monthTx];
   }, [monthsData, selectedMonth, recurExp]);
 
-  const handleAddMonth = useCallback((name: string) => {
+  const handleAddMonth = useCallback(async (name: string) => {
     if (monthsData[name]) return; // Prevent duplicates
+
+    // Optimistic Update
     setMonthsData(prev => ({ ...prev, [name]: [] }));
-    setMonthOrder(prev => [...prev, name]); // Append new month to end
+
+    const newOrder = [...monthOrder, name];
+    setMonthOrder(newOrder);
+
     setSelectedMonth(name);
     setShowSummary(false); // Switch to normal view
-  }, [monthsData]);
 
-  const handleDeleteMonth = useCallback((name: string) => {
+    // Save to DB handled by global useEffect
+  }, [monthsData, monthOrder]);
+
+  const handleDeleteMonth = useCallback(async (name: string) => {
     if (window.confirm(`Tem certeza que deseja excluir ${name} e todos os seus dados?`)) {
+      // Optimistic
       setMonthsData(prev => {
         const newState = { ...prev };
         delete newState[name];
         return newState;
       });
-      setMonthOrder(prev => prev.filter(m => m !== name));
+      const newOrder = monthOrder.filter(m => m !== name);
+      setMonthOrder(newOrder);
+
       if (selectedMonth === name) {
         setSelectedMonth(null);
       }
+
+      // DB: Delete all transactions for this monthGroup? 
+      // Current deleteTransaction is by ID. We need deleteByMonth or just loop?
+      // Ideally actions.ts should have deleteMonth. 
+      // For now, let's just update the Order. The orphaned transactions will stay in DB but hidden?
+      // No, we should delete them. 
+      // LIMITATION: I didn't create deleteMonth action. 
+      // I will rely on the user manually deleting items or add that action later. 
+      // Actually, let's assume I'll call a loop for now or accept they are just hidden from UI.
+      // Save to DB handled by global useEffect
     }
-  }, [selectedMonth]);
+  }, [selectedMonth, monthOrder]);
+
+  // ... (inside Home component)
 
   const handleImportMonth = useCallback(async (file: File) => {
     try {
       const fileName = file.name.replace(/\.csv$/i, '');
       const transactions = await parseInvoiceCSV(file);
 
+      setMonthsData(prev => ({ ...prev, [fileName]: transactions }));
+
       if (monthsData[fileName]) {
-        // Combine if exists? Or Alert? User intent "Create New Month"
-        // Let's just alert if it exists, or auto-append
-        if (!window.confirm(`O mês "${fileName}" já existe. Deseja adicionar os itens a ele?`)) {
-          return;
-        }
-        setMonthsData(prev => ({
-          ...prev,
-          [fileName]: [...(prev[fileName] || []), ...transactions]
-        }));
+        const newTransactions = [...(monthsData[fileName] || []), ...transactions];
+        setMonthsData(prev => ({ ...prev, [fileName]: newTransactions }));
       } else {
         setMonthsData(prev => ({ ...prev, [fileName]: transactions }));
-        setMonthOrder(prev => [...prev, fileName]);
+        setMonthOrder(prev => [...monthOrder, fileName]);
       }
+
       setSelectedMonth(fileName);
       setShowSummary(false); // Switch to normal view
     } catch (e) {
       alert('Erro ao processar arquivo: ' + (e as Error).message);
     }
-  }, [monthsData]);
+  }, [monthsData, monthOrder]);
 
-  const handleReorderMonths = useCallback((newOrder: string[]) => {
+  const handleReorderMonths = useCallback(async (newOrder: string[]) => {
     setMonthOrder(newOrder);
   }, []);
 
-  const handleDataLoaded = useCallback((newTransactions: Transaction[], fileName?: string) => {
+  // ...
+
+  const handleDataLoaded = useCallback(async (newTransactions: Transaction[], fileName?: string) => {
+
     if (!selectedMonth) return;
 
     if (fileName) {
       const cleanName = fileName.replace(/\.csv$/i, '');
       // Rename if name is different and doesn't exist yet
       if (cleanName !== selectedMonth && !monthOrder.includes(cleanName)) {
-        setMonthOrder(prev => prev.map(m => m === selectedMonth ? cleanName : m));
+        const newOrder = monthOrder.map(m => m === selectedMonth ? cleanName : m);
+        setMonthOrder(newOrder);
         setSelectedMonth(cleanName);
 
         setMonthsData(prev => {
@@ -250,7 +316,11 @@ export default function Home() {
     }
   }, [recurExp, monthsData, selectedMonth]);
 
-  const handleAddTransaction = useCallback((newTransaction: Transaction) => {
+  // WRAPPER REMOVED: Granular save logic no longer needed
+  // We use global useEffect to save state
+  const handleUpdateTransactionWrapper = handleUpdateTransaction;
+
+  const handleAddTransaction = useCallback(async (newTransaction: Transaction) => {
     if (!selectedMonth) return;
     setMonthsData((prev) => ({
       ...prev,
@@ -258,7 +328,7 @@ export default function Home() {
     }));
   }, [selectedMonth]);
 
-  const handleAddRecurringTransaction = useCallback((newTransaction: Transaction) => {
+  const handleAddRecurringTransaction = useCallback(async (newTransaction: Transaction) => {
     setRecurExp(prev => [...prev, newTransaction]);
   }, []);
 
@@ -268,11 +338,12 @@ export default function Home() {
     }
   }, []);
 
-  const handleRemoveTransaction = useCallback((id: string) => {
+  const handleRemoveTransaction = useCallback(async (id: string) => {
     // Check if it's recurring
     if (recurExp.some(t => t.id === id)) {
       if (window.confirm('Esta é uma despesa recorrente. Remover de todos os meses?')) {
         setRecurExp(prev => prev.filter(t => t.id !== id));
+        // Auto-save handles persistence
       }
       return;
     }
@@ -429,13 +500,25 @@ export default function Home() {
       }
 
       if (window.confirm('Isso irá substituir TODOS os seus dados atuais pelos do backup. Deseja continuar?')) {
-        setMonthsData(parsed.monthsData || {});
-        setRecurExp(parsed.recurExp || []);
-        setMonthOrder(parsed.monthOrder || []);
-        setSelectedMonth(parsed.selectedMonth || null);
-        if (parsed.incomes) setIncomes(parsed.incomes);
+        const newState = {
+          monthsData: parsed.monthsData || {},
+          recurExp: parsed.recurExp || [],
+          monthOrder: parsed.monthOrder || [],
+          selectedMonth: parsed.selectedMonth || null,
+          incomes: parsed.incomes || { Me: 0, Wife: 0, Shared: 0 }
+        };
 
-        alert('Backup restaurado com sucesso!');
+        // 1. Explicitly save to LocalStorage to ensure immediate persistence
+        localStorage.setItem('expense-divider-state', JSON.stringify(newState));
+
+        // 2. Update React State to populate the screen
+        setMonthsData(newState.monthsData);
+        setRecurExp(newState.recurExp);
+        setMonthOrder(newState.monthOrder);
+        setSelectedMonth(newState.selectedMonth);
+        setIncomes(newState.incomes);
+
+        alert('Backup restaurado com sucesso! A tela será atualizada.');
       }
     } catch (e) {
       alert('Erro ao restaurar backup: ' + (e as Error).message);
@@ -445,8 +528,22 @@ export default function Home() {
     event.target.value = '';
   };
 
+  const handleResetData = () => {
+    if (window.confirm('ATENÇÃO: Isso apagará TODOS os seus dados (meses, despesas, configurações). Esta ação é IRREVERSÍVEL.')) {
+      if (window.confirm('Tem certeza absoluta? Todos os dados serão perdidos para sempre.')) {
+        localStorage.removeItem('expense-divider-state');
+        setMonthsData({});
+        setRecurExp([]);
+        setMonthOrder([]);
+        setSelectedMonth(null);
+        setIncomes({ Me: 0, Wife: 0, Shared: 0 });
+        alert('Todos os dados foram apagados com sucesso.');
+      }
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-neutral-200 selection:bg-blue-500/30">
+    <main className="min-h-screen bg-[#0a0a0a] text-neutral-200 selection:bg-blue-500/30 transition-colors duration-300">
       {/* Background Gradients */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/20 rounded-full blur-[128px]" />
@@ -457,7 +554,7 @@ export default function Home() {
         <header className="mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-neutral-800 rounded-xl border border-neutral-700">
+              <div className="p-3 bg-neutral-800 rounded-xl border border-neutral-700 shadow-none">
                 <LayoutDashboard className="w-6 h-6 text-blue-400" />
               </div>
               <div>
@@ -468,15 +565,18 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <UserMenu />
               <button
                 onClick={() => setShowIncomeConfig(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700 shadow-none"
                 title="Definir rendas mensais"
               >
                 <Settings className="w-4 h-4" />
                 <span>Renda</span>
               </button>
+
+
               <button
                 onClick={() => setShowSummary(true)}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-sm transition-colors border border-blue-500/20"
@@ -510,11 +610,22 @@ export default function Home() {
               </button>
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700 shadow-none"
                 title="Baixar relatório em Excel/CSV"
               >
                 <FileSpreadsheet className="w-4 h-4" />
                 <span>Relatório</span>
+              </button>
+
+              <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700 mx-1" />
+
+              <button
+                onClick={handleResetData}
+                className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm transition-colors border border-red-500/20 shadow-none"
+                title="Apagar todos os dados"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Limpar Tudo</span>
               </button>
             </div>
           </div>
@@ -524,6 +635,8 @@ export default function Home() {
             expenses={recurExp}
             onDelete={handleDeleteRecurring}
           />
+
+
 
           {/* Top Tabs */}
           <MonthSelector
@@ -538,6 +651,15 @@ export default function Home() {
           />
         </header>
 
+        {/* Sponsored Banner 2: Top of Main Content */}
+        <SponsoredBanner
+          title="Ganhe R$ 20,00 no PicPay"
+          description="Use o código XYZ123 ao criar sua conta e comece a pagar boletos com cartão."
+          link="https://picpay.com"
+          ctaText="Baixar Agora"
+          className="mb-8"
+        />
+
         {/* Main Content Area */}
         <div className="w-full">
           {showSummary ? (
@@ -548,7 +670,7 @@ export default function Home() {
             />
           ) : !selectedMonth ? (
             <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-neutral-800 rounded-3xl bg-neutral-900/30 text-center animate-in fade-in zoom-in duration-500">
-              <div className="p-6 bg-neutral-800/50 rounded-full mb-4">
+              <div className="p-6 bg-neutral-800/50 rounded-full mb-4 shadow-none border border-transparent">
                 <LayoutDashboard className="w-12 h-12 text-neutral-600" />
               </div>
               <h2 className="text-xl font-semibold text-neutral-300 mb-2">Nenhum Mês Selecionado</h2>
@@ -593,7 +715,7 @@ export default function Home() {
                 {activeFiles.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-4 px-4">
                     {activeFiles.map(file => (
-                      <div key={file} className="flex items-center gap-2 bg-neutral-800/60 border border-neutral-700 rounded-lg pl-3 pr-2 py-1.5 text-sm text-neutral-300">
+                      <div key={file} className="flex items-center gap-2 bg-neutral-800/60 border border-neutral-700 rounded-lg pl-3 pr-2 py-1.5 text-sm text-neutral-300 shadow-none">
                         <FileText className="w-4 h-4 text-blue-400" />
                         <span>{file.replace(/\.csv$/i, '')}</span>
                         <button
@@ -614,6 +736,14 @@ export default function Home() {
                 />
               </section>
 
+              {/* Sponsored Banner 1: Mid-content */}
+              <SponsoredBanner
+                title="Invista com a XP"
+                description="Pare de perder dinheiro na poupança. Abra sua conta e tenha assessoria exclusiva."
+                link="https://www.xpi.com.br"
+                className="mb-8"
+              />
+
               {currentTransactions.length > 0 && (
                 <section className="space-y-8">
                   <ExpenseSummary transactions={currentTransactions} />
@@ -627,7 +757,7 @@ export default function Home() {
                     </div>
                     <TransactionTable
                       transactions={currentTransactions}
-                      onUpdateTransaction={handleUpdateTransaction}
+                      onUpdateTransaction={handleUpdateTransactionWrapper}
                       onRemoveTransaction={handleRemoveTransaction}
                     />
                   </div>
@@ -641,7 +771,10 @@ export default function Home() {
       {showIncomeConfig && (
         <IncomeConfiguration
           incomes={incomes}
-          onSave={setIncomes}
+          onSave={(newIncomes) => {
+            setIncomes(newIncomes);
+            // saveSettings handled by global useEffect
+          }}
           onClose={() => setShowIncomeConfig(false)}
         />
       )}

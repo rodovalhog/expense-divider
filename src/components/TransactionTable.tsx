@@ -122,7 +122,7 @@ export function TransactionTable({ transactions, onUpdateTransaction, onRemoveTr
                                                         className={cn(
                                                             "p-2 rounded-lg transition-all duration-200 ease-in-out border border-transparent",
                                                             t.owner === opt.value
-                                                                ? `bg-neutral-800 ${opt.color} border-neutral-700 shadow-sm`
+                                                                ? `bg-neutral-800 ${opt.color} border-neutral-700`
                                                                 : "text-neutral-600 hover:text-neutral-400 hover:bg-neutral-800/50"
                                                         )}
                                                     >
