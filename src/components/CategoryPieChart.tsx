@@ -28,6 +28,15 @@ const COLORS = [
 ];
 
 export function CategoryPieChart({ transactions }: CategoryPieChartProps) {
+    const [isMobile, setIsMobile] = React.useState(false);
+
+    React.useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     const data = useMemo(() => {
         const categoryMap: Record<string, number> = {};
 
@@ -65,45 +74,93 @@ export function CategoryPieChart({ transactions }: CategoryPieChartProps) {
     if (data.length === 0) return null;
 
     return (
-        <div className="w-full bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 h-[500px]">
+
+        <div className={`w-full bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 ${isMobile ? 'h-auto' : 'h-[500px]'}`}>
             <div className="flex items-center gap-2 mb-4">
                 <PieChartIcon className="w-5 h-5 text-neutral-400" />
                 <h3 className="text-lg font-semibold text-neutral-200">Gastos por Categoria</h3>
             </div>
 
-            <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie
-                        data={data}
-                        cx="40%" // Move pie slightly left to make room for legend
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={140}
-                        innerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                        paddingAngle={2}
-                    >
+            {isMobile ? (
+                // Mobile Layout: Chart + Custom Legend (Stacked)
+                <div className="flex flex-col">
+                    <div className="h-[250px] w-full"> {/* Fixed height for chart area only */}
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={data}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={90}
+                                    innerRadius={55}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                    paddingAngle={2}
+                                >
+                                    {data.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.fill} stroke="rgba(0,0,0,0.2)" />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    formatter={(value: number | undefined) => formatCurrency(value || 0)}
+                                    contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Custom HTML Legend for Mobile */}
+                    <div className="mt-4 flex flex-col gap-2">
                         {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} stroke="rgba(0,0,0,0.2)" />
+                            <div key={index} className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: entry.fill }} />
+                                    <span className="text-neutral-300">{entry.name}</span>
+                                </div>
+                                <span className="text-neutral-400 font-medium">{formatCurrency(entry.value)}</span>
+                            </div>
                         ))}
-                    </Pie>
-                    <Tooltip
-                        formatter={(value: number | undefined) => formatCurrency(value || 0)}
-                        contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px', color: '#fff' }}
-                        itemStyle={{ color: '#fff' }}
-                    />
-                    <Legend
-                        layout="vertical"
-                        verticalAlign="middle"
-                        align="right"
-                        width={240}
-                        iconType="circle"
-                        formatter={renderLegendText}
-                        wrapperStyle={{ overflowY: 'auto', maxHeight: '400px', paddingLeft: '20px' }}
-                    />
-                </PieChart>
-            </ResponsiveContainer>
+                    </div>
+                </div>
+            ) : (
+                // Desktop Layout: Original with side Legend
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie
+                            data={data}
+                            cx="40%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={140}
+                            innerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            paddingAngle={2}
+                        >
+                            {data.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} stroke="rgba(0,0,0,0.2)" />
+                            ))}
+                        </Pie>
+                        <Tooltip
+                            formatter={(value: number | undefined) => formatCurrency(value || 0)}
+                            contentStyle={{ backgroundColor: '#171717', borderColor: '#262626', borderRadius: '8px', color: '#fff' }}
+                            itemStyle={{ color: '#fff' }}
+                        />
+                        <Legend
+                            layout="vertical"
+                            verticalAlign="middle"
+                            align="right"
+                            width={240}
+                            iconType="circle"
+                            formatter={renderLegendText}
+                            wrapperStyle={{ overflowY: 'auto', maxHeight: '400px', paddingLeft: '20px' }}
+                        />
+                    </PieChart>
+                </ResponsiveContainer>
+            )}
         </div>
     );
 }
+

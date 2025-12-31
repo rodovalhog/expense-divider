@@ -565,7 +565,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center justify-start sm:justify-end">
               <UserMenu />
               <button
                 onClick={() => setShowIncomeConfig(true)}
@@ -573,7 +573,7 @@ export default function Home() {
                 title="Definir rendas mensais"
               >
                 <Settings className="w-4 h-4" />
-                <span>Renda</span>
+                <span className="hidden sm:inline">Renda</span>
               </button>
 
 
@@ -583,7 +583,7 @@ export default function Home() {
                 title="Ver resumo de todos os meses"
               >
                 <BarChart3 className="w-4 h-4" />
-                <span>Resumo Anual</span>
+                <span className="hidden sm:inline">Resumo Anual</span>
               </button>
               <input
                 type="file"
@@ -598,7 +598,7 @@ export default function Home() {
                 title="Restaurar backup (JSON)"
               >
                 <Upload className="w-4 h-4" />
-                <span>Restaurar</span>
+                <span className="hidden sm:inline">Restaurar</span>
               </button>
               <button
                 onClick={handleExportBackup}
@@ -606,7 +606,7 @@ export default function Home() {
                 title="Baixar backup completo (JSON)"
               >
                 <FileJson className="w-4 h-4" />
-                <span>Backup</span>
+                <span className="hidden sm:inline">Backup</span>
               </button>
               <button
                 onClick={handleExportCSV}
@@ -614,10 +614,10 @@ export default function Home() {
                 title="Baixar relatório em Excel/CSV"
               >
                 <FileSpreadsheet className="w-4 h-4" />
-                <span>Relatório</span>
+                <span className="hidden sm:inline">Relatório</span>
               </button>
 
-              <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700 mx-1" />
+              <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700 mx-1 hidden sm:block" />
 
               <button
                 onClick={handleResetData}
@@ -625,7 +625,7 @@ export default function Home() {
                 title="Apagar todos os dados"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Limpar Tudo</span>
+                <span className="hidden sm:inline">Limpar Tudo</span>
               </button>
             </div>
           </div>
