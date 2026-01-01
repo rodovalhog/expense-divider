@@ -7,7 +7,7 @@ import { ExpenseSummary } from '@/components/ExpenseSummary';
 import { FixedExpenseForm } from '@/components/FixedExpenseForm';
 import { MonthSelector } from '@/components/MonthSelector';
 import { Transaction, Owner } from '@/types';
-import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload, Trash2, Users } from 'lucide-react';
 
 import { CategoryPieChart } from '@/components/CategoryPieChart';
 import { RecurringExpensesList } from '@/components/RecurringExpensesList';
@@ -15,10 +15,11 @@ import { parseInvoiceCSV } from '@/lib/parser';
 import { ConsolidatedSummary } from '@/components/ConsolidatedSummary';
 import { IncomeConfiguration } from '@/components/IncomeConfiguration';
 import { SponsoredBanner } from '@/components/SponsoredBanner';
+import { ShareModal } from '@/components/ShareModal';
 
 import { UserMenu } from '@/components/auth/UserMenu';
 import { shouldIncludeInTotal, normalizeDescription } from '@/lib/utils';
-import { saveAppState, getUserData } from '@/app/actions';
+import { saveAppState, getUserData, getPendingInvites, acceptInvite } from '@/app/actions';
 import { useSession } from 'next-auth/react';
 
 export default function Home() {
@@ -42,6 +43,23 @@ export default function Home() {
   const { data: session } = useSession();
   const [needsMigration, setNeedsMigration] = useState(false);
   const [localDataToMigrate, setLocalDataToMigrate] = useState<any>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+
+  // Check for invites
+  useEffect(() => {
+    async function checkInvites() {
+      if (!session?.user?.email) return;
+      const invites = await getPendingInvites();
+      if (invites.length > 0) {
+        const inv = invites[0];
+        if (window.confirm(`Você recebeu um convite de ${inv.ownerEmail || 'um usuário'} para acessar a conta dele(a). Deseja aceitar?`)) {
+          await acceptInvite(inv.id);
+          window.location.reload(); // Reload to switch to shared view
+        }
+      }
+    }
+    checkInvites();
+  }, [session]);
 
   // Load from DB on mount
   useEffect(() => {
@@ -600,6 +618,18 @@ export default function Home() {
                 <Upload className="w-4 h-4" />
                 <span className="hidden sm:inline">Restaurar</span>
               </button>
+
+
+
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-sm transition-colors border border-indigo-500/20"
+                title="Compartilhar Conta"
+              >
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">Compartilhar</span>
+              </button>
+
               <button
                 onClick={handleExportBackup}
                 className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
@@ -778,6 +808,10 @@ export default function Home() {
           onClose={() => setShowIncomeConfig(false)}
         />
       )}
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+      />
     </main >
   );
 }

@@ -87,3 +87,11 @@ export const verificationTokens = pgTable(
         primaryKey({ columns: [vt.identifier, vt.token] }),
     ]
 )
+
+export const sharedUsers = pgTable('shared_users', {
+    id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+    ownerId: text('owner_id').references(() => users.id).notNull(),
+    guestEmail: text('guest_email').notNull(),
+    status: text('status').notNull().default('pending'), // 'pending' | 'accepted'
+    createdAt: timestamp('created_at').defaultNow(),
+});
