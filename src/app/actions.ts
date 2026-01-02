@@ -83,11 +83,39 @@ export async function getPendingInvites() {
 }
 
 export async function acceptInvite(inviteId: string) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) throw new Error("Unauthorized");
+
+    const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user || !user.email) throw new Error("Unauthorized");
+
+    // Fix IDOR: Verify guestEmail matches current user
+    const invite = await db.select().from(sharedUsers).where(eq(sharedUsers.id, inviteId)).limit(1);
+    if (invite.length === 0) throw new Error("Convite não encontrado.");
+
+    if (invite[0].guestEmail !== user.email) {
+        throw new Error("Não autorizado.");
+    }
+
     await db.update(sharedUsers).set({ status: 'accepted' }).where(eq(sharedUsers.id, inviteId));
     revalidatePath('/');
 }
 
 export async function cancelInvite(inviteId: string) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) throw new Error("Unauthorized");
+
+    const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user || !user.email) throw new Error("Unauthorized");
+
+    // Fix IDOR: Allow delete ONLY if Owner OR Guest
+    const invite = await db.select().from(sharedUsers).where(eq(sharedUsers.id, inviteId)).limit(1);
+    if (invite.length === 0) return; // Already gone
+
+    if (invite[0].ownerId !== userId && invite[0].guestEmail !== user.email) {
+        throw new Error("Você não tem permissão para remover este acesso.");
+    }
+
     await db.delete(sharedUsers).where(eq(sharedUsers.id, inviteId));
     revalidatePath('/');
 }

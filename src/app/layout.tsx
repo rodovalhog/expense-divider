@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils'; // Not strictly needed here if we don't apply classes to body via cn but good practice
@@ -6,8 +6,21 @@ import { cn } from '@/lib/utils'; // Not strictly needed here if we don't apply 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Expense Divider',
-  description: 'Split expenses easily with your partner',
+  title: 'Divisor de Despesas',
+  description: 'Simplifique suas finanças compartilhadas',
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Divisor",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#171717",
 };
 
 import { ThemeProvider } from '@/components/ThemeProvider';
