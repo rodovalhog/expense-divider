@@ -7,7 +7,7 @@ import { ExpenseSummary } from '@/components/ExpenseSummary';
 import { FixedExpenseForm } from '@/components/FixedExpenseForm';
 import { MonthSelector } from '@/components/MonthSelector';
 import { Transaction, Owner } from '@/types';
-import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload, Trash2, Users } from 'lucide-react';
+import { LayoutDashboard, Sparkles, FileText, X, Pencil, Check, Download, FileJson, FileSpreadsheet, BarChart3, Settings, Upload, Trash2, Users, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 
 import { CategoryPieChart } from '@/components/CategoryPieChart';
 import { RecurringExpensesList } from '@/components/RecurringExpensesList';
@@ -45,6 +45,8 @@ export default function Home() {
   const [needsMigration, setNeedsMigration] = useState(false);
   const [localDataToMigrate, setLocalDataToMigrate] = useState<any>(null);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isTransactionsCollapsed, setIsTransactionsCollapsed] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   // Check for invites
   useEffect(() => {
@@ -571,39 +573,43 @@ export default function Home() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <header className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-row items-center justify-between gap-4 mb-8">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-neutral-800 rounded-xl border border-neutral-700 shadow-none">
+              <div className="p-3 bg-neutral-800 rounded-xl border border-neutral-700 shadow-none hidden sm:block">
                 <LayoutDashboard className="w-6 h-6 text-blue-400" />
               </div>
+              <div className="p-2 bg-neutral-800 rounded-lg border border-neutral-700 shadow-none sm:hidden">
+                <LayoutDashboard className="w-5 h-5 text-blue-400" />
+              </div>
               <div>
-                <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-neutral-400">
-                  Divisor de Despesas
+                <h1 className="text-xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-neutral-400">
+                  Divisor
                 </h1>
-                <p className="text-neutral-500">Simplifique suas finanças compartilhadas</p>
+                <p className="text-neutral-500 hidden sm:block">Simplifique suas finanças compartilhadas</p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 items-center justify-start sm:justify-end">
+            <div className="flex flex-wrap gap-2 items-center justify-end">
               <UserMenu />
+
               <button
                 onClick={() => setShowIncomeConfig(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700 shadow-none"
+                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700 shadow-none"
                 title="Definir rendas mensais"
               >
                 <Settings className="w-4 h-4" />
                 <span className="hidden sm:inline">Renda</span>
               </button>
 
-
               <button
-                onClick={() => setShowSummary(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-sm transition-colors border border-blue-500/20"
-                title="Ver resumo de todos os meses"
+                onClick={() => setShowShareModal(true)}
+                className="hidden sm:flex items-center gap-2 px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-sm transition-colors border border-indigo-500/20"
+                title="Compartilhar Conta"
               >
-                <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Resumo Anual</span>
+                <Users className="w-4 h-4" />
+                <span className="hidden sm:inline">Compartilhar</span>
               </button>
+
               <input
                 type="file"
                 ref={fileInputRef}
@@ -611,53 +617,110 @@ export default function Home() {
                 className="hidden"
                 accept=".json"
               />
-              <button
-                onClick={handleImportBackupClick}
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
-                title="Restaurar backup (JSON)"
-              >
-                <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">Restaurar</span>
-              </button>
 
+              {/* More Actions Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="flex items-center gap-2 px-2 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
+                  title="Mais Opções"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
 
+                {showMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300"
+                      onClick={() => setShowMenu(false)}
+                    />
+                    <div className="fixed inset-y-0 right-0 z-50 w-3/4 max-w-sm bg-neutral-900 border-l border-neutral-800 shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col h-full">
+                      <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+                        <h2 className="text-lg font-bold text-white">Menu</h2>
+                        <button
+                          onClick={() => setShowMenu(false)}
+                          className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                        <div className="p-1 sm:hidden">
+                          <button
+                            onClick={() => { setShowIncomeConfig(true); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                          >
+                            <Settings className="w-4 h-4" />
+                            Renda
+                          </button>
+                          <button
+                            onClick={() => { setShowShareModal(true); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-indigo-400 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                          >
+                            <Users className="w-4 h-4" />
+                            Compartilhar
+                          </button>
+                          <div className="h-px bg-neutral-800 my-1" />
+                        </div>
 
-              <button
-                onClick={() => setShowShareModal(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-sm transition-colors border border-indigo-500/20"
-                title="Compartilhar Conta"
-              >
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Compartilhar</span>
-              </button>
+                        <div className="p-1">
+                          <button
+                            onClick={() => { setShowSummary(true); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                          >
+                            <BarChart3 className="w-4 h-4 text-blue-400" />
+                            Resumo Anual
+                          </button>
 
-              <button
-                onClick={handleExportBackup}
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700"
-                title="Baixar backup completo (JSON)"
-              >
-                <FileJson className="w-4 h-4" />
-                <span className="hidden sm:inline">Backup</span>
-              </button>
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors border border-neutral-700 shadow-none"
-                title="Baixar relatório em Excel/CSV"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span className="hidden sm:inline">Relatório</span>
-              </button>
+                          <button
+                            onClick={() => { handleExportCSV(); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                          >
+                            <FileSpreadsheet className="w-4 h-4 text-green-400" />
+                            Baixar Relatório (CSV)
+                          </button>
+                        </div>
 
-              <div className="w-px h-8 bg-neutral-200 dark:bg-neutral-700 mx-1 hidden sm:block" />
+                        <div className="h-px bg-neutral-800 my-1" />
 
-              <button
-                onClick={handleResetData}
-                className="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm transition-colors border border-red-500/20 shadow-none"
-                title="Apagar todos os dados"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Limpar Tudo</span>
-              </button>
+                        <div className="p-1">
+                          <button
+                            onClick={() => { handleExportBackup(); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                          >
+                            <FileJson className="w-4 h-4 text-yellow-400" />
+                            Salvar Backup (JSON)
+                          </button>
+
+                          <button
+                            onClick={() => { handleImportBackupClick(); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors text-left"
+                          >
+                            <Upload className="w-4 h-4 text-purple-400" />
+                            Restaurar Backup
+                          </button>
+                        </div>
+
+                        <div className="h-px bg-neutral-800 my-1" />
+
+                        <div className="p-1">
+                          <button
+                            onClick={() => { handleResetData(); setShowMenu(false); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors text-left"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Limpar Tudo
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-4 border-t border-neutral-800 text-center text-xs text-neutral-600">
+                        Divisor de Despesas
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -782,10 +845,6 @@ export default function Home() {
                   <CategoryPieChart transactions={currentTransactions} />
 
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="w-5 h-5 text-yellow-400" />
-                      <h2 className="text-xl font-semibold text-white">Transações</h2>
-                    </div>
                     <TransactionTable
                       transactions={currentTransactions}
                       onUpdateTransaction={handleUpdateTransactionWrapper}
@@ -808,7 +867,8 @@ export default function Home() {
           }}
           onClose={() => setShowIncomeConfig(false)}
         />
-      )}
+      )
+      }
       <ShareModal
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
