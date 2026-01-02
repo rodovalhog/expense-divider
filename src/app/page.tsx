@@ -16,6 +16,7 @@ import { ConsolidatedSummary } from '@/components/ConsolidatedSummary';
 import { IncomeConfiguration } from '@/components/IncomeConfiguration';
 import { SponsoredBanner } from '@/components/SponsoredBanner';
 import { ShareModal } from '@/components/ShareModal';
+import { InstallPrompt } from '@/components/InstallPrompt';
 
 import { UserMenu } from '@/components/auth/UserMenu';
 import { shouldIncludeInTotal, normalizeDescription } from '@/lib/utils';
@@ -812,6 +813,7 @@ export default function Home() {
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
       />
+      <InstallPrompt />
     </main >
   );
 }
